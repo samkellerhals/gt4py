@@ -104,6 +104,7 @@ class Cast(common.Cast[Expr], Expr):  # type: ignore
 class Temporary(LocNode):
     name: SymbolName
     dtype: common.DataType
+    data_dims: Tuple[int, ...] = field(default_factory=tuple)
 
 
 class GTLevel(LocNode):
@@ -167,6 +168,7 @@ class GTAccessor(LocNode):
     id: int  # noqa: A003  # shadowing python builtin
     intent: Intent
     extent: GTExtent
+    temporary: bool = True
     ndim: int = 3
 
 

@@ -33,7 +33,7 @@ from gtc.passes.oir_optimizations.utils import collect_symbol_names, symbol_name
 # - Each VerticalLoop is MultiStage
 
 
-def _extract_accessors(node: eve.Node) -> List[gtcpp.GTAccessor]:
+def _extract_accessors(node: eve.Node, temp_names: Set[str]) -> List[gtcpp.GTAccessor]:
     extents = (
         node.iter_tree()
         .if_isinstance(gtcpp.AccessorRef)
@@ -56,7 +56,12 @@ def _extract_accessors(node: eve.Node) -> List[gtcpp.GTAccessor]:
     ndims = dict(
         node.iter_tree()
         .if_isinstance(gtcpp.AccessorRef)
-        .map(lambda accessor: (accessor.name, 3 + len(accessor.data_index)))
+        .map(
+            lambda accessor: (
+                accessor.name,
+                3 + (len(accessor.data_index) if accessor.name not in temp_names else 0),
+            )
+        )
     )
 
     return [
@@ -65,6 +70,7 @@ def _extract_accessors(node: eve.Node) -> List[gtcpp.GTAccessor]:
             id=i,
             intent=gtcpp.Intent.INOUT if name in inout_fields else gtcpp.Intent.IN,
             extent=extent,
+            temporary=(name in temp_names),
             ndim=ndims[name],
         )
         for i, (name, extent) in enumerate(extents.items())
@@ -174,7 +180,7 @@ class OIRToGTCpp(eve.NodeTranslator):
         return gtcpp.Cast(dtype=node.dtype, expr=self.visit(node.expr, **kwargs))
 
     def visit_Temporary(self, node: oir.Temporary, **kwargs: Any) -> gtcpp.Temporary:
-        return gtcpp.Temporary(name=node.name, dtype=node.dtype)
+        return gtcpp.Temporary(name=node.name, dtype=node.dtype, data_dims=node.data_dims)
 
     def visit_VariableKOffset(
         self, node: oir.VariableKOffset, **kwargs: Any
@@ -299,7 +305,7 @@ class OIRToGTCpp(eve.NodeTranslator):
             body=self.visit(node.body, comp_ctx=comp_ctx, **kwargs),
             local_variables=self.visit(node.declarations, **kwargs),
         )
-        accessors = _extract_accessors(apply_method)
+        accessors = _extract_accessors(apply_method, {decl.name for decl in comp_ctx.temporaries})
         stage_args = [gtcpp.Arg(name=acc.name) for acc in accessors]
 
         comp_ctx.add_arguments(

@@ -14,8 +14,9 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import dataclasses
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, Generic, List, Optional, Set, Tuple, TypeVar, cast
 
 from eve import NodeVisitor
@@ -40,6 +41,7 @@ class GenericAccess(Generic[OffsetT]):
     field: str
     offset: OffsetT
     is_write: bool
+    data_index: List[oir.Expr] = dataclasses.field(default_factory=list)
     horizontal_mask: Optional[common.HorizontalMask] = None
 
     @property
@@ -92,6 +94,7 @@ class AccessCollector(NodeVisitor):
             GeneralAccess(
                 field=node.name,
                 offset=(offsets["i"], offsets["j"], offsets["k"]),
+                data_index=node.data_index,
                 is_write=is_write,
                 horizontal_mask=horizontal_mask,
             )
@@ -173,6 +176,7 @@ class AccessCollector(NodeVisitor):
                     CartesianAccess(
                         field=acc.field,
                         offset=cast(Tuple[int, int, int], acc.offset),
+                        data_index=acc.data_index,
                         is_write=acc.is_write,
                     )
                     for acc in self._ordered_accesses
@@ -228,8 +232,8 @@ class StencilExtentComputer(NodeVisitor):
     @dataclass
     class Context:
         # TODO: Remove dependency on gt4py.definitions here
-        fields: Dict[str, Extent] = field(default_factory=dict)
-        blocks: Dict[int, Extent] = field(default_factory=dict)
+        fields: Dict[str, Extent] = dataclasses.field(default_factory=dict)
+        blocks: Dict[int, Extent] = dataclasses.field(default_factory=dict)
 
     def __init__(self, add_k: bool = False):
         self.add_k = add_k
